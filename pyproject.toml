@@ -1,0 +1,25 @@
+[project]
+name = "ai-gmail-summarizer"
+version = "0.1.0"
+description = "AI-powered Gmail summarizer that identifies job opportunities and matches them against your CV"
+requires-python = ">=3.12"
+dependencies = [
+    "google-auth-oauthlib>=1.2.0",
+    "google-api-python-client>=2.130.0",
+    "anthropic>=0.40.0",
+    "python-dotenv>=1.0.0",
+    "requests>=2.31.0",
+    "beautifulsoup4>=4.12.0",
+    "playwright>=1.58.0",
+    "pyyaml>=6.0",
+]
+
+[project.scripts]
+gmail-summarizer = "gmail_summarizer.main:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/gmail_summarizer"]
