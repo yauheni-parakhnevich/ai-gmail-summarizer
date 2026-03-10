@@ -2,7 +2,7 @@
 
 import json
 import re
-from urllib.parse import urlparse, urlencode, parse_qs
+from urllib.parse import parse_qs, urlencode, urlparse
 
 import anthropic
 from bs4 import BeautifulSoup
@@ -12,9 +12,22 @@ from gmail_summarizer.gmail import Email
 
 # Tracking/marketing query params to strip from URLs
 TRACKING_PARAMS = {
-    "utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term",
-    "trk", "midToken", "midSig", "lipi", "lgCta", "lgTemp",
-    "uid", "pid", "hash", "profile-id", "reference-date",
+    "utm_source",
+    "utm_medium",
+    "utm_campaign",
+    "utm_content",
+    "utm_term",
+    "trk",
+    "midToken",
+    "midSig",
+    "lipi",
+    "lgCta",
+    "lgTemp",
+    "uid",
+    "pid",
+    "hash",
+    "profile-id",
+    "reference-date",
 }
 
 SYSTEM_PROMPT = """\

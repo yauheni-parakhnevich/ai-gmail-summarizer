@@ -39,8 +39,7 @@ def load_config(profile: str) -> Config:
     profile_dir = Path("profiles") / profile
     if not profile_dir.is_dir():
         raise FileNotFoundError(
-            f"Profile directory not found: {profile_dir}\n"
-            f"Create it with config.yaml, cv.md, and credentials.json"
+            f"Profile directory not found: {profile_dir}\nCreate it with config.yaml, cv.md, and credentials.json"
         )
 
     config_file = profile_dir / "config.yaml"

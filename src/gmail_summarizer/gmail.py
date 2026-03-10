@@ -8,7 +8,7 @@ from email.mime.text import MIMEText
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
-from googleapiclient.discovery import build, Resource
+from googleapiclient.discovery import Resource, build
 
 from gmail_summarizer.config import Config
 
@@ -36,9 +36,7 @@ def authenticate(config: Config) -> Resource:
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
         else:
-            flow = InstalledAppFlow.from_client_secrets_file(
-                str(config.credentials_path), SCOPES
-            )
+            flow = InstalledAppFlow.from_client_secrets_file(str(config.credentials_path), SCOPES)
             creds = flow.run_local_server(port=0)
 
         config.token_path.parent.mkdir(parents=True, exist_ok=True)
@@ -49,23 +47,13 @@ def authenticate(config: Config) -> Resource:
 
 def fetch_unread_emails(service: Resource) -> list[Email]:
     """Fetch all unread emails from the inbox."""
-    results = (
-        service.users()
-        .messages()
-        .list(userId="me", q="is:unread category:primary", maxResults=100)
-        .execute()
-    )
+    results = service.users().messages().list(userId="me", q="is:unread category:primary", maxResults=100).execute()
 
     messages = results.get("messages", [])
     emails: list[Email] = []
 
     for msg_ref in messages:
-        msg = (
-            service.users()
-            .messages()
-            .get(userId="me", id=msg_ref["id"], format="full")
-            .execute()
-        )
+        msg = service.users().messages().get(userId="me", id=msg_ref["id"], format="full").execute()
         emails.append(_parse_message(msg))
 
     return emails
@@ -124,9 +112,7 @@ def _extract_body(payload: dict, parts: dict) -> None:
         for part in payload["parts"]:
             _extract_body(part, parts)
     elif "body" in payload and payload["body"].get("data"):
-        decoded = base64.urlsafe_b64decode(payload["body"]["data"]).decode(
-            "utf-8", errors="replace"
-        )
+        decoded = base64.urlsafe_b64decode(payload["body"]["data"]).decode("utf-8", errors="replace")
         if mime_type == "text/plain":
             parts["text"] += decoded
         elif mime_type == "text/html":

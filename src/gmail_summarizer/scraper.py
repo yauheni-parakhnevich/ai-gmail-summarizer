@@ -4,12 +4,13 @@ import json
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from urllib.parse import urlparse, parse_qs
+from urllib.parse import parse_qs, urlparse
 
 import anthropic
 import requests
 from bs4 import BeautifulSoup
-from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeout
+from playwright.sync_api import TimeoutError as PlaywrightTimeout
+from playwright.sync_api import sync_playwright
 
 from gmail_summarizer.config import Config
 
@@ -169,7 +170,10 @@ def _run_playwright(config: Config, url: str, *, headless: bool) -> str | object
             # Handle LinkedIn login
             if "linkedin.com" in page.url and ("login" in page.url or "authwall" in page.url):
                 login_result = _handle_login(
-                    config, page, clean_url, headless,
+                    config,
+                    page,
+                    clean_url,
+                    headless,
                     label="linkedin",
                     login_url="https://www.linkedin.com/login",
                     email=config.linkedin_email,
@@ -188,7 +192,10 @@ def _run_playwright(config: Config, url: str, *, headless: bool) -> str | object
             # Handle Xing login
             if "xing.com" in page.url and ("login" in page.url or "/start" in page.url):
                 login_result = _handle_login(
-                    config, page, clean_url, headless,
+                    config,
+                    page,
+                    clean_url,
+                    headless,
                     label="xing",
                     login_url="https://login.xing.com/",
                     email=config.xing_email,
@@ -206,7 +213,6 @@ def _run_playwright(config: Config, url: str, *, headless: bool) -> str | object
 
             page.wait_for_timeout(3000)
             html = page.content()
-            final_url = page.url
 
         except PlaywrightTimeout:
             print("    [scrape error] Page timed out")

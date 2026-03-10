@@ -36,8 +36,7 @@ def classify_emails(config: Config, emails: list[Email]) -> list[Email]:
     client = anthropic.Anthropic(api_key=config.anthropic_api_key)
 
     email_descriptions = "\n\n".join(
-        f"ID: {e.id}\nSubject: {e.subject}\nFrom: {e.sender}\nSnippet: {e.body_text[:300]}"
-        for e in emails
+        f"ID: {e.id}\nSubject: {e.subject}\nFrom: {e.sender}\nSnippet: {e.body_text[:300]}" for e in emails
     )
 
     response = client.messages.create(

@@ -44,10 +44,7 @@ def match_vacancy(config: Config, vacancy: VacancyInfo, cv_text: str) -> MatchRe
         f"Salary: {vacancy.salary or 'Not specified'}"
     )
 
-    prompt = (
-        f"## Job Vacancy\n{vacancy_text}\n\n"
-        f"## Candidate CV\n{cv_text}"
-    )
+    prompt = f"## Job Vacancy\n{vacancy_text}\n\n## Candidate CV\n{cv_text}"
 
     response = client.messages.create(
         model=config.claude_model,
