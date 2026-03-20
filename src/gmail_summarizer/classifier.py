@@ -13,13 +13,18 @@ You are an email classifier. Given a list of emails (subject + snippet), \
 determine which ones are related to job opportunities, new positions, \
 job postings, career opportunities, or recruitment.
 
-Include emails that:
-- Directly advertise jobs ("new position", "we're hiring", "job opportunity")
-- Suggest candidate fit ("You may be a fit...", "based on your profile", "roles matching your skills")
-- Come from recruiters, job boards, or hiring platforms (LinkedIn, Indeed, Glassdoor, etc.)
-- Contain job alerts, saved search results, or talent community updates
+Emails may be in any language (English, German, etc.). Include emails that:
+- Directly advertise jobs (e.g. "new position", "we're hiring", \
+"Stellenangebot", "neue Stelle", "Jobangebot")
+- Suggest candidate fit (e.g. "You may be a fit", "based on your profile", \
+"Passt zu Ihrem Profil", "passende Stellen")
+- Come from recruiters, job boards, or hiring platforms \
+(LinkedIn, Indeed, Glassdoor, Xing, jobs.ch, etc.)
+- Contain job alerts, saved search results, or talent community updates \
+(e.g. "Jobalarm", "Jobbenachrichtigung", "neue Stellenangebote")
 
-Exclude newsletters, marketing, social media notifications, and non-job correspondence.
+Exclude newsletters, marketing, social media notifications, \
+and non-job correspondence.
 
 Respond with a JSON array of email IDs that are job-related.
 Example: ["id1", "id3"]

@@ -26,6 +26,7 @@ class Config:
     credentials_path: Path
     token_path: Path
     cv_path: Path
+    matcher_instructions_path: Path
     recipient_email: str
     min_fit_percentage: int
     linkedin_email: str
@@ -63,6 +64,7 @@ def load_config(profile: str) -> Config:
         credentials_path=profile_dir / "credentials.json",
         token_path=profile_dir / "token.json",
         cv_path=profile_dir / "cv.md",
+        matcher_instructions_path=profile_dir / "matcher_instructions.md",
         recipient_email=profile_cfg.get("recipient_email", ""),
         min_fit_percentage=int(profile_cfg.get("min_fit_percentage", 30)),
         linkedin_email=profile_cfg.get("linkedin_email", ""),

@@ -5,6 +5,7 @@ import smtplib
 from dataclasses import dataclass
 from email.mime.text import MIMEText
 
+from google.auth.exceptions import RefreshError
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
@@ -34,8 +35,14 @@ def authenticate(config: Config) -> Resource:
 
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
-        else:
+            try:
+                creds.refresh(Request())
+            except RefreshError:
+                print("  Token expired or revoked, re-authenticating...")
+                config.token_path.unlink(missing_ok=True)
+                creds = None
+
+        if not creds or not creds.valid:
             flow = InstalledAppFlow.from_client_secrets_file(str(config.credentials_path), SCOPES)
             creds = flow.run_local_server(port=0)
 

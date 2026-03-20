@@ -35,6 +35,12 @@ def match_vacancy(config: Config, vacancy: VacancyInfo, cv_text: str) -> MatchRe
     """Compare a vacancy against the CV and return a match result."""
     client = anthropic.Anthropic(api_key=config.anthropic_api_key)
 
+    system_prompt = SYSTEM_PROMPT
+    if config.matcher_instructions_path.exists():
+        instructions = config.matcher_instructions_path.read_text().strip()
+        if instructions:
+            system_prompt += f"\n\n## Additional Instructions\n{instructions}"
+
     vacancy_text = (
         f"Title: {vacancy.title}\n"
         f"Company: {vacancy.company}\n"
@@ -49,7 +55,7 @@ def match_vacancy(config: Config, vacancy: VacancyInfo, cv_text: str) -> MatchRe
     response = client.messages.create(
         model=config.claude_model,
         max_tokens=1024,
-        system=SYSTEM_PROMPT,
+        system=system_prompt,
         messages=[{"role": "user", "content": prompt}],
     )
 

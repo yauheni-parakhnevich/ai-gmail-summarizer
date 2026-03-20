@@ -48,6 +48,7 @@ def _make_config(tmp_path):
         credentials_path=tmp_path / "credentials.json",
         token_path=tmp_path / "token.json",
         cv_path=tmp_path / "cv.md",
+        matcher_instructions_path=tmp_path / "matcher_instructions.md",
         recipient_email="",
         min_fit_percentage=30,
         linkedin_email="",
