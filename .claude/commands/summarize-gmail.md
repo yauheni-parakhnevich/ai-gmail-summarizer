@@ -142,9 +142,13 @@ Sort remaining matches by fit_percentage descending.
 
 Report: "N vacancies above threshold (min_fit_percentage%), M filtered out."
 
+**Do NOT stop here even if 0 vacancies are above threshold — always proceed to generate and send the report.**
+
 ---
 
 ## Step 6: Generate & Save HTML Report
+
+**Always generate a report, even if there are no matches above threshold.** If there are no matches, the report should summarize what was found (total emails, job emails, links scraped) and list skipped/below-threshold vacancies for reference.
 
 Generate an HTML report with this exact structure:
 
@@ -210,9 +214,11 @@ Job Opportunities Report — YYYY-MM-DD
 
 ---
 
-## Step 7: Send Report via Gmail API
+## Step 7: Send Report via SMTP
 
-Send the HTML report using the standalone Gmail send tool:
+**Always send the report**, even if there are no matches above threshold. The recipient should know the pipeline ran and what was found.
+
+Send the HTML report using the standalone send tool:
 
 ```bash
 uv run python tools/gmail_send.py --to RECIPIENT_EMAIL --subject "Job Opportunities Report — YYYY-MM-DD" --html-file profiles/PROFILE_NAME/report_YYYY-MM-DD.html
