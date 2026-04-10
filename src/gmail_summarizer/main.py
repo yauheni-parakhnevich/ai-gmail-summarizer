@@ -119,6 +119,9 @@ def main() -> None:
     service = authenticate(config)
 
     # --- Determine resume point ---
+    matches: list[MatchResult] | None = None
+    job_email_ids: list[str] = []
+
     if state.get("matches"):
         matches = [_match_from_dict(d) for d in state["matches"]]
         job_email_ids = state.get("job_email_ids", [])
@@ -128,18 +131,13 @@ def main() -> None:
         job_email_ids = state.get("job_email_ids", [])
         print(f"  Restored {len(vacancies)} vacancies from state, skipping to matching")
         matches = _run_matching(config, vacancies, state, job_email_ids)
-        if matches is None:
-            return
     elif state.get("links"):
         unique_links = state["links"]
         job_email_ids = state.get("job_email_ids", [])
         print(f"  Restored {len(unique_links)} links from state, skipping to scraping")
         vacancies = _run_scraping(config, unique_links, state, job_email_ids)
-        if vacancies is None:
-            return
-        matches = _run_matching(config, vacancies, state, job_email_ids)
-        if matches is None:
-            return
+        if vacancies is not None:
+            matches = _run_matching(config, vacancies, state, job_email_ids)
     elif state.get("job_email_ids"):
         job_email_ids = state["job_email_ids"]
         print(f"  Restored {len(job_email_ids)} job email IDs, re-fetching for link extraction")
@@ -147,52 +145,52 @@ def main() -> None:
         job_emails = [e for e in emails if e.id in job_email_ids]
         if not job_emails:
             print("Could not re-fetch job emails. Starting fresh.")
-            unique_links, job_email_ids = _run_fetch_and_extract(config, service, state)
-            if unique_links is None:
-                return
+            result = _run_fetch_and_extract(config, service, state)
+            if result is not None:
+                unique_links, job_email_ids = result
+            else:
+                unique_links = None
         else:
             unique_links = _extract_links(config, job_emails, state, job_email_ids)
-            if unique_links is None:
-                return
-        vacancies = _run_scraping(config, unique_links, state, job_email_ids)
-        if vacancies is None:
-            return
-        matches = _run_matching(config, vacancies, state, job_email_ids)
-        if matches is None:
-            return
+        if unique_links is not None:
+            vacancies = _run_scraping(config, unique_links, state, job_email_ids)
+            if vacancies is not None:
+                matches = _run_matching(config, vacancies, state, job_email_ids)
     else:
         # Full pipeline
         result = _run_fetch_and_extract(config, service, state)
-        if result is None:
-            return
-        unique_links, job_email_ids = result
-        vacancies = _run_scraping(config, unique_links, state, job_email_ids)
-        if vacancies is None:
-            return
-        matches = _run_matching(config, vacancies, state, job_email_ids)
-        if matches is None:
-            return
+        if result is not None:
+            unique_links, job_email_ids = result
+            vacancies = _run_scraping(config, unique_links, state, job_email_ids)
+            if vacancies is not None:
+                matches = _run_matching(config, vacancies, state, job_email_ids)
 
-    # --- Report & Send ---
-    matches.sort(key=lambda m: m.fit_percentage, reverse=True)
+    # --- Always mark processed emails as read ---
+    if job_email_ids:
+        print("Marking processed emails as read...")
+        mark_as_read(service, job_email_ids)
+        print(f"  {len(job_email_ids)} emails marked as read")
 
-    print("Generating report...")
-    html_report = format_report(matches)
-    subject = f"Job Opportunities Report — {date.today().isoformat()}"
+    # --- Report & Send (only if we have matches) ---
+    if matches:
+        matches.sort(key=lambda m: m.fit_percentage, reverse=True)
 
-    print(f"Sending report to {config.recipient_email}...")
-    send_email(config, subject, html_report)
-    print("  Email sent!")
+        print("Generating report...")
+        html_report = format_report(matches)
+        subject = f"Job Opportunities Report — {date.today().isoformat()}"
 
-    print("Marking processed emails as read...")
-    mark_as_read(service, job_email_ids)
-    print(f"  {len(job_email_ids)} emails marked as read")
+        print(f"Sending report to {config.recipient_email}...")
+        send_email(config, subject, html_report)
+        print("  Email sent!")
 
-    _delete_state(config)
+        _delete_state(config)
 
-    print(f"\nDone! {len(matches)} matching vacancies found:")
-    for i, m in enumerate(matches, 1):
-        print(f"  {i}. [{m.fit_percentage}%] {m.vacancy.title} at {m.vacancy.company}")
+        print(f"\nDone! {len(matches)} matching vacancies found:")
+        for i, m in enumerate(matches, 1):
+            print(f"  {i}. [{m.fit_percentage}%] {m.vacancy.title} at {m.vacancy.company}")
+    else:
+        _delete_state(config)
+        print("\nDone! No matching vacancies to report.")
 
 
 def _run_fetch_and_extract(config, service, state) -> tuple[list[str], list[str]] | None:
