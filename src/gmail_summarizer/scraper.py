@@ -17,6 +17,11 @@ from gmail_summarizer.config import Config
 
 LINKEDIN_STATE_PATH = Path("credentials/linkedin_state.json")
 XING_STATE_PATH = Path("credentials/xing_state.json")
+INDEED_STATE_PATH = Path("credentials/indeed_state.json")
+
+# How long to wait for Indeed's Cloudflare "Security Check" to clear — either on
+# its own or after the user clicks the checkbox in the visible browser window.
+_CF_CHALLENGE_TIMEOUT_MS = 120000
 
 EXTRACT_PROMPT = """\
 Extract job posting details from the following webpage text. \
@@ -56,7 +61,7 @@ _HEADERS = {
 }
 
 # Sites that need a real browser (JS-rendered, login walls, tracking redirects)
-_BROWSER_DOMAINS = {"linkedin.com", "xing.com"}
+_BROWSER_DOMAINS = {"linkedin.com", "xing.com", "indeed.com"}
 
 # Domains whose URLs are tracking redirects — resolve with requests before scraping
 _REDIRECT_DOMAINS = {"xing.com", "awstrack.me"}
@@ -115,6 +120,9 @@ class BrowserSession:
         self._headless = headless
         self._pw = None
         self._browser = None
+        # Indeed sits behind Cloudflare, which blocks headless and bundled
+        # Chromium outright. It gets its own visible, real-Chrome browser.
+        self._indeed_browser = None
         # group label -> (context, state_path | None)
         self._contexts: dict[str, tuple[object, Path | None]] = {}
 
@@ -126,20 +134,38 @@ class BrowserSession:
 
     # -- lifecycle ----------------------------------------------------------
 
+    def _ensure_pw(self) -> None:
+        if self._pw is None:
+            self._pw = sync_playwright().start()
+
     def _ensure_browser(self) -> None:
         if self._browser is None:
-            self._pw = sync_playwright().start()
+            self._ensure_pw()
             self._browser = self._pw.chromium.launch(headless=self._headless)
+
+    def _ensure_indeed_browser(self) -> None:
+        if self._indeed_browser is None:
+            self._ensure_pw()
+            self._indeed_browser = self._pw.chromium.launch(
+                headless=False,
+                channel="chrome",
+                args=["--disable-blink-features=AutomationControlled"],
+            )
 
     def _context_for(self, group: str, state_path: Path | None):
         existing = self._contexts.get(group)
         if existing is not None:
             return existing[0]
-        self._ensure_browser()
-        if state_path and state_path.exists():
-            context = self._browser.new_context(storage_state=str(state_path))
+        if group == "indeed":
+            self._ensure_indeed_browser()
+            browser = self._indeed_browser
         else:
-            context = self._browser.new_context()
+            self._ensure_browser()
+            browser = self._browser
+        if state_path and state_path.exists():
+            context = browser.new_context(storage_state=str(state_path))
+        else:
+            context = browser.new_context()
         self._contexts[group] = (context, state_path)
         return context
 
@@ -154,10 +180,12 @@ class BrowserSession:
             with contextlib.suppress(Exception):
                 context.close()
         self._contexts.clear()
-        if self._browser is not None:
-            with contextlib.suppress(Exception):
-                self._browser.close()
-            self._browser = None
+        for browser in (self._browser, self._indeed_browser):
+            if browser is not None:
+                with contextlib.suppress(Exception):
+                    browser.close()
+        self._browser = None
+        self._indeed_browser = None
         if self._pw is not None:
             with contextlib.suppress(Exception):
                 self._pw.stop()
@@ -257,6 +285,9 @@ class BrowserSession:
                 if login_result is not None:
                     return login_result if login_result is _NEEDS_VERIFICATION else None
 
+            if group == "indeed" and not _wait_for_cloudflare(page):
+                return None
+
             return self._read_content(page, group, clean_url)
 
         except PlaywrightTimeout:
@@ -282,6 +313,9 @@ class BrowserSession:
             if is_linkedin:
                 with contextlib.suppress(Exception):
                     page.wait_for_selector("text=About the job", timeout=6000)
+            if group == "indeed":
+                with contextlib.suppress(Exception):
+                    page.wait_for_selector("#jobDescriptionText", timeout=10000)
             page.wait_for_timeout(2500 if attempt == 0 else 4000)
             last = _clean_html_to_text(page.content())
             if len(last) >= 50 and not _looks_like_linkedin_wall(clean_url, last):
@@ -344,6 +378,47 @@ def _looks_like_linkedin_wall(url: str, text: str) -> bool:
     return len(text) < 2500 and any(m in low for m in _LINKEDIN_WALL_MARKERS)
 
 
+_CF_CHALLENGE_TITLES = ("security check", "just a moment", "nur einen moment", "sicherheitsüberprüfung")
+
+
+def _is_cloudflare_challenge(title: str) -> bool:
+    low = title.lower()
+    return any(m in low for m in _CF_CHALLENGE_TITLES)
+
+
+def _wait_for_cloudflare(page) -> bool:
+    """Wait until a Cloudflare challenge page is replaced by the real page.
+
+    Usually passes on its own in a real, visible Chrome; otherwise the user can
+    click the checkbox in the window. The resulting ``cf_clearance`` cookie lives
+    in the context and is saved to ``storage_state`` on close, so later pages and
+    later runs skip the check. Returns False if still challenged after timeout.
+    """
+    with contextlib.suppress(Exception):
+        page.wait_for_load_state("domcontentloaded")
+    if not _is_cloudflare_challenge(page.title()):
+        return True
+    print(
+        f"    [cloudflare] Security check on {page.url[:70]} — "
+        f"click the checkbox in the Chrome window if it does not clear (waiting up to "
+        f"{_CF_CHALLENGE_TIMEOUT_MS // 1000}s)...",
+        flush=True,
+    )
+    deadline = _CF_CHALLENGE_TIMEOUT_MS
+    while deadline > 0:
+        page.wait_for_timeout(1000)
+        deadline -= 1000
+        with contextlib.suppress(Exception):
+            if not _is_cloudflare_challenge(page.title()):
+                print("    [cloudflare] Passed", flush=True)
+                with contextlib.suppress(Exception):
+                    INDEED_STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
+                    page.context.storage_state(path=str(INDEED_STATE_PATH))
+                return True
+    print("    [cloudflare] Still blocked after timeout", flush=True)
+    return False
+
+
 def _domain_group(url: str) -> tuple[str, Path | None]:
     """Map a URL to its (context group, saved-session path)."""
     netloc = urlparse(url).netloc.lower()
@@ -351,6 +426,8 @@ def _domain_group(url: str) -> tuple[str, Path | None]:
         return "linkedin", LINKEDIN_STATE_PATH
     if "xing.com" in netloc:
         return "xing", XING_STATE_PATH
+    if "indeed.com" in netloc:
+        return "indeed", INDEED_STATE_PATH
     return "generic", None
 
 
