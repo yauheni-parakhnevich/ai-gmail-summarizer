@@ -18,7 +18,7 @@ from gmail_summarizer.gmail import (
 from gmail_summarizer.link_extractor import extract_job_links
 from gmail_summarizer.matcher import MatchResult, match_vacancy
 from gmail_summarizer.report import format_report
-from gmail_summarizer.scraper import VacancyInfo, scrape_vacancy
+from gmail_summarizer.scraper import BrowserSession, VacancyInfo
 
 
 def _state_path(config: Config) -> Path:
@@ -248,14 +248,15 @@ def _run_scraping(config, unique_links, state, job_email_ids) -> list[VacancyInf
     """Scrape vacancy pages, save state. Returns vacancies or None."""
     print("Scraping vacancy pages...")
     vacancies = []
-    for url in unique_links:
-        print(f"  Scraping: {url[:80]}...")
-        vacancy = scrape_vacancy(config, url)
-        if vacancy:
-            vacancies.append(vacancy)
-            print(f"    -> {vacancy.title} at {vacancy.company}")
-        else:
-            print("    -> Failed to scrape")
+    with BrowserSession(config) as session:
+        for url in unique_links:
+            print(f"  Scraping: {url[:80]}...")
+            vacancy = session.scrape_vacancy(url)
+            if vacancy:
+                vacancies.append(vacancy)
+                print(f"    -> {vacancy.title} at {vacancy.company}")
+            else:
+                print("    -> Failed to scrape")
 
     if not vacancies:
         print("Could not extract details from any vacancy pages. Done.")

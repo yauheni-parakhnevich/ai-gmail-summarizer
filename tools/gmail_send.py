@@ -35,12 +35,18 @@ def send_email(to: str, subject: str, html_body: str) -> None:
     message["From"] = sender
     message["To"] = to
 
+    # local_hostname is passed explicitly: without it smtplib calls socket.getfqdn()
+    # after the greeting, which can take 5-10 s (slow reverse DNS on macOS) and trips
+    # Migadu's ~10 s idle timeout ("421 4.4.2 Idle timeout"), breaking EHLO/AUTH.
+    local_hostname = sender.split("@", 1)[-1] or "localhost"
+    timeout = 60
+
     try:
-        with smtplib.SMTP_SSL(host, port) as server:
+        with smtplib.SMTP_SSL(host, port, local_hostname=local_hostname, timeout=timeout) as server:
             server.login(sender, password)
             server.send_message(message)
     except OSError:
-        with smtplib.SMTP(host, 587) as server:
+        with smtplib.SMTP(host, 587, local_hostname=local_hostname, timeout=timeout) as server:
             server.starttls()
             server.login(sender, password)
             server.send_message(message)
